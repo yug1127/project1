@@ -348,52 +348,70 @@
         }
       }
 
-      let isSyncingToCloud = false;
-      async function syncToCloudServer(state) {
-        if (isSyncingToCloud) return;
-        isSyncingToCloud = true;
+      const CRUD_API_BASE = 'https://crudcrud.com/api/c210dfedd9ad4a91ac0763b0fe2bbc7f/requests';
+
+      async function pushRequestToCloud(accessId) {
         try {
           const payload = {
-            id: 'rankstreak_themenaretuff_app_v10',
-            name: 'RankStreak Global Cloud Data',
-            data: {
-              accessRequests: state.accessRequests,
-              users: state.users,
-              followedUserIds: state.followedUserIds,
-              updatedAt: new Date().toISOString()
-            }
+            accessId: accessId,
+            status: 'pending',
+            createdAt: getLocalDateString()
           };
-
-          const res = await fetch(CLOUD_SYNC_URL, {
-            method: 'PUT',
+          const res = await fetch(CRUD_API_BASE, {
+            method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
           });
+          return res.ok;
+        } catch (e) {
+          return false;
+        }
+      }
 
-          if (!res.ok) {
-            await fetch('https://api.restful-api.dev/objects', {
+      async function fetchAllRequestsFromCloud() {
+        try {
+          const res = await fetch(CRUD_API_BASE, {
+            headers: { 'Cache-Control': 'no-cache' }
+          });
+          if (res.ok) {
+            const list = await res.json();
+            if (Array.isArray(list)) {
+              const reqMap = {};
+              list.forEach(item => {
+                if (item.accessId) {
+                  reqMap[item.accessId] = {
+                    _id: item._id,
+                    id: item.accessId,
+                    username: item.username || '',
+                    status: item.status || 'pending',
+                    createdAt: item.createdAt || getLocalDateString()
+                  };
+                }
+              });
+              return reqMap;
+            }
+          }
+        } catch (e) {}
+        return null;
+      }
+
+      async function updateRequestInCloud(_id, accessId, status, username = '') {
+        try {
+          const payload = { accessId, status, username, updatedAt: getLocalDateString() };
+          if (_id) {
+            await fetch(`${CRUD_API_BASE}/${_id}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload)
+            });
+          } else {
+            await fetch(CRUD_API_BASE, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify(payload)
             });
           }
         } catch (e) {}
-        isSyncingToCloud = false;
-      }
-
-      async function fetchFromCloudServer() {
-        try {
-          const res = await fetch(CLOUD_SYNC_URL, {
-            headers: { 'Cache-Control': 'no-cache' }
-          });
-          if (res.ok) {
-            const json = await res.json();
-            if (json && json.data && json.data.accessRequests) {
-              return json.data;
-            }
-          }
-        } catch (e) {}
-        return null;
       }
 
       // ========================================================
@@ -860,10 +878,10 @@
 
         const handleManualCloudFetch = async () => {
           setIsRefreshing(true);
-          const cloudData = await fetchFromCloudServer();
-          if (cloudData && cloudData.accessRequests) {
+          const cloudMap = await fetchAllRequestsFromCloud();
+          if (cloudMap && Object.keys(cloudMap).length > 0) {
             setAppState(prev => {
-              const merged = { ...prev.accessRequests, ...cloudData.accessRequests };
+              const merged = { ...prev.accessRequests, ...cloudMap };
               const newState = { ...prev, accessRequests: merged };
               saveAppState(newState, false);
               return newState;
@@ -876,8 +894,10 @@
         };
 
         const handleApprove = (id) => {
+          const req = accessRequests[id] || { id, username: 'Member', status: 'pending' };
+          updateRequestInCloud(req._id, id, 'approved', req.username);
+
           setAppState(prev => {
-            const req = prev.accessRequests[id] || { id, username: 'Member', status: 'pending' };
             const updatedReqs = { ...prev.accessRequests, [id]: { ...req, status: 'approved' } };
             
             const existingUser = prev.users[id] || {
@@ -1053,6 +1073,7 @@
           const existingReq = appState.accessRequests?.[rawId];
 
           if (!existingReq) {
+            pushRequestToCloud(rawId);
             setAppState(prev => {
               const newState = {
                 ...prev,
@@ -1067,6 +1088,7 @@
             setActiveAccessId(rawId);
             setStep('pending');
           } else if (existingReq.status === 'pending') {
+            pushRequestToCloud(rawId);
             setActiveAccessId(rawId);
             setStep('pending');
           } else if (existingReq.status === 'approved') {
@@ -1126,9 +1148,9 @@
                 return;
               }
 
-              const cloudData = await fetchFromCloudServer();
-              if (cloudData && cloudData.accessRequests) {
-                const cloudReq = cloudData.accessRequests[activeAccessId];
+              const cloudMap = await fetchAllRequestsFromCloud();
+              if (cloudMap && cloudMap[activeAccessId]) {
+                const cloudReq = cloudMap[activeAccessId];
                 if (cloudReq && cloudReq.status === 'approved') {
                   setAppState(prev => ({
                     ...prev,
@@ -1141,7 +1163,7 @@
                   }
                 }
               }
-            }, 1200);
+            }, 1000);
             return () => clearInterval(interval);
           }
         }, [step, activeAccessId, appState.accessRequests]);
@@ -1282,20 +1304,14 @@
               return prev;
             });
 
-            const cloudData = await fetchFromCloudServer();
-            if (cloudData && cloudData.accessRequests) {
+            const cloudMap = await fetchAllRequestsFromCloud();
+            if (cloudMap && Object.keys(cloudMap).length > 0) {
               setAppState(prev => {
-                const mergedReqs = { ...prev.accessRequests, ...cloudData.accessRequests };
-                const mergedUsers = { ...prev.users, ...cloudData.users };
-                const mergedFollowed = Array.from(new Set([...(prev.followedUserIds || []), ...(cloudData.followedUserIds || [])]));
-
-                if (JSON.stringify(prev.accessRequests) !== JSON.stringify(mergedReqs) ||
-                    JSON.stringify(prev.users) !== JSON.stringify(mergedUsers)) {
+                const mergedReqs = { ...prev.accessRequests, ...cloudMap };
+                if (JSON.stringify(prev.accessRequests) !== JSON.stringify(mergedReqs)) {
                   const newState = {
                     ...prev,
-                    accessRequests: mergedReqs,
-                    users: mergedUsers,
-                    followedUserIds: mergedFollowed
+                    accessRequests: mergedReqs
                   };
                   saveAppState(newState, false);
                   return newState;
