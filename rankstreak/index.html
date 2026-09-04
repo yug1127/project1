@@ -290,20 +290,20 @@
       // ========================================================
       // 3. STORAGE & CLEAN ADMIN ACCESS MODEL (NO MOCK USERS)
       // ========================================================
-      const STORAGE_KEY = 'rankstreak_app_data_v7';
-      const MASTER_ADMIN_KEY = 'yugpatel.1127';
+      const STORAGE_KEY = 'rankstreak_app_data_v10';
+      const MASTER_ADMIN_KEY = 'themenaretuff';
 
       const INITIAL_DEMO_DATA = {
         adminKey: MASTER_ADMIN_KEY,
         activeUserId: null,
         accessRequests: {
-          'yugpatel.1127': { id: 'yugpatel.1127', username: 'Yug Patel', status: 'approved', isAdmin: true }
+          'themenaretuff': { id: 'themenaretuff', username: 'Administrator', status: 'approved', isAdmin: true }
         },
         users: {
-          'yugpatel.1127': {
-            id: 'yugpatel.1127',
-            username: 'Yug Patel',
-            shareId: 'yugpatel.1127',
+          'themenaretuff': {
+            id: 'themenaretuff',
+            username: 'Administrator',
+            shareId: 'themenaretuff',
             current_rank: 1, // Day 1 Start
             current_streak_days: 0,
             days_this_month: 0,
@@ -1080,7 +1080,7 @@
         const activeUserId = appState.activeUserId;
         const currentUser = appState.users[activeUserId];
         
-        // STRICT ADMIN CHECK: Only true if logged in under yugpatel.1127!
+        // STRICT ADMIN CHECK: Only true if logged in under themenaretuff!
         const isAdmin = Boolean(
           activeUserId && activeUserId.trim().toLowerCase() === MASTER_ADMIN_KEY.toLowerCase()
         );

@@ -290,22 +290,22 @@
       // ========================================================
       // 3. STORAGE & CLOUD REAL-TIME OVER-THE-INTERNET SYNC
       // ========================================================
-      const STORAGE_KEY = 'rankstreak_app_data_v9';
-      const MASTER_ADMIN_KEY = 'yugpatel.1127';
-      const SYNC_CHANNEL_NAME = 'rankstreak_realtime_sync_v3';
-      const CLOUD_SYNC_URL = 'https://api.restful-api.dev/objects/rankstreak_yugpatel_1127_app_v9';
+      const STORAGE_KEY = 'rankstreak_app_data_v10';
+      const MASTER_ADMIN_KEY = 'themenaretuff';
+      const SYNC_CHANNEL_NAME = 'rankstreak_realtime_sync_v4';
+      const CLOUD_SYNC_URL = 'https://api.restful-api.dev/objects/rankstreak_themenaretuff_app_v10';
 
       const INITIAL_DEMO_DATA = {
         adminKey: MASTER_ADMIN_KEY,
         activeUserId: null,
         accessRequests: {
-          'yugpatel.1127': { id: 'yugpatel.1127', username: 'Yug Patel', status: 'approved', isAdmin: true }
+          'themenaretuff': { id: 'themenaretuff', username: 'Administrator', status: 'approved', isAdmin: true }
         },
         users: {
-          'yugpatel.1127': {
-            id: 'yugpatel.1127',
-            username: 'Yug Patel',
-            shareId: 'yugpatel.1127',
+          'themenaretuff': {
+            id: 'themenaretuff',
+            username: 'Administrator',
+            shareId: 'themenaretuff',
             current_rank: 1, // Day 1 Start
             current_streak_days: 0,
             days_this_month: 0,
@@ -1151,16 +1151,7 @@
                     SUBMIT ACCESS ID
                   </button>
 
-                  <div className="pt-2 border-t border-slate-900 space-y-2">
-                    <button
-                      type="button"
-                      onClick={() => onAccessGranted(MASTER_ADMIN_KEY)}
-                      className="w-full py-2.5 bg-amber-950/80 hover:bg-amber-900 border border-amber-500/60 rounded-xl text-amber-300 font-mono text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow"
-                    >
-                      <span>👑 Are you Administrator? Click to Login as Admin</span>
-                    </button>
-                    <p className="text-[10px] text-slate-500">Don't have an ID? Enter any Access ID above to send a real-time request to Administrator.</p>
-                  </div>
+                  <p className="text-[10px] text-slate-500 text-center mt-2">Don't have an ID? Enter any Access ID above to send a real-time request to Administrator.</p>
                 </form>
               )}
 
