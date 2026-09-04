@@ -1134,11 +1134,11 @@
               {step === 'enter_id' && (
                 <form onSubmit={handleAccessSubmit} className="space-y-4">
                   <div>
-                    <label className="text-[10px] text-slate-400 uppercase font-bold block mb-1">Enter Your Access ID / Invite Code</label>
+                    <label className="text-[10px] text-slate-400 uppercase font-bold block mb-1">Enter Access ID or Create a Request ID</label>
                     <input
                       type="text"
                       required
-                      placeholder="e.g. USER-1001-JOIN or your assigned ID"
+                      placeholder="Type your ID or any requested ID (e.g. USER-77)"
                       value={accessIdInput}
                       onChange={e => setAccessIdInput(e.target.value)}
                       className="w-full bg-black border border-slate-700 rounded-xl px-4 py-3 text-sm text-cyan-300 font-bold tracking-wider text-center focus:outline-none focus:border-cyan-400"
@@ -1148,10 +1148,10 @@
                   {error && <p className="text-xs text-rose-400">{error}</p>}
 
                   <button type="submit" className="w-full py-3.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-black font-bold text-sm tracking-wider uppercase shadow-xl transition-all">
-                    SUBMIT ACCESS ID
+                    SUBMIT & REQUEST ACCESS
                   </button>
 
-                  <p className="text-[10px] text-slate-500 text-center mt-2">Don't have an ID? Enter any Access ID above to send a real-time request to Administrator.</p>
+                  <p className="text-[10px] text-slate-500 text-center mt-2">Type any ID above to send a real-time approval request to the Administrator. Once approved in the Admin Panel, your ID will be activated permanently!</p>
                 </form>
               )}
 
