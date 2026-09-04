@@ -288,129 +288,29 @@
       }
 
       // ========================================================
-      // 3. STORAGE & CLOUD REAL-TIME OVER-THE-INTERNET SYNC
+      // 3. CLEAN LOCAL USER STORAGE & STATE
       // ========================================================
-      const STORAGE_KEY = 'rankstreak_app_data_v10';
-      const MASTER_ADMIN_KEY = 'themenaretuff';
-      const SYNC_CHANNEL_NAME = 'rankstreak_realtime_sync_v4';
-      const CLOUD_SYNC_URL = 'https://api.restful-api.dev/objects/rankstreak_themenaretuff_app_v10';
+      const STORAGE_KEY = 'rankstreak_user_app_v12';
 
-      const INITIAL_DEMO_DATA = {
-        adminKey: MASTER_ADMIN_KEY,
+      const INITIAL_DATA = {
         activeUserId: null,
-        accessRequests: {
-          'themenaretuff': { id: 'themenaretuff', username: 'Administrator', status: 'approved', isAdmin: true }
-        },
-        users: {
-          'themenaretuff': {
-            id: 'themenaretuff',
-            username: 'Administrator',
-            shareId: 'themenaretuff',
-            current_rank: 1, // Day 1 Start
-            current_streak_days: 0,
-            days_this_month: 0,
-            created_at: getLocalDateString(),
-            history: [],
-            isAdmin: true
-          }
-        },
-        followedUserIds: []
+        users: {}
       };
 
       function loadAppState() {
         try {
           const raw = localStorage.getItem(STORAGE_KEY);
-          if (!raw) return INITIAL_DEMO_DATA;
+          if (!raw) return INITIAL_DATA;
           const parsed = JSON.parse(raw);
-          return {
-            ...INITIAL_DEMO_DATA,
-            ...parsed,
-            accessRequests: { ...INITIAL_DEMO_DATA.accessRequests, ...(parsed.accessRequests || {}) },
-            users: { ...INITIAL_DEMO_DATA.users, ...(parsed.users || {}) }
-          };
+          return { ...INITIAL_DATA, ...parsed };
         } catch (e) {
-          return INITIAL_DEMO_DATA;
+          return INITIAL_DATA;
         }
       }
 
-      function saveAppState(state, pushCloud = true) {
+      function saveAppState(state) {
         try {
           localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-          if (window.BroadcastChannel) {
-            const bc = new BroadcastChannel(SYNC_CHANNEL_NAME);
-            bc.postMessage({ type: 'STATE_UPDATED', state });
-            bc.close();
-          }
-        } catch (e) {}
-
-        if (pushCloud) {
-          syncToCloudServer(state);
-        }
-      }
-
-      const CRUD_API_BASE = 'https://crudcrud.com/api/c210dfedd9ad4a91ac0763b0fe2bbc7f/requests';
-
-      async function pushRequestToCloud(accessId) {
-        try {
-          const payload = {
-            accessId: accessId,
-            status: 'pending',
-            createdAt: getLocalDateString()
-          };
-          const res = await fetch(CRUD_API_BASE, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-          });
-          return res.ok;
-        } catch (e) {
-          return false;
-        }
-      }
-
-      async function fetchAllRequestsFromCloud() {
-        try {
-          const res = await fetch(CRUD_API_BASE, {
-            headers: { 'Cache-Control': 'no-cache' }
-          });
-          if (res.ok) {
-            const list = await res.json();
-            if (Array.isArray(list)) {
-              const reqMap = {};
-              list.forEach(item => {
-                if (item.accessId) {
-                  reqMap[item.accessId] = {
-                    _id: item._id,
-                    id: item.accessId,
-                    username: item.username || '',
-                    status: item.status || 'pending',
-                    createdAt: item.createdAt || getLocalDateString()
-                  };
-                }
-              });
-              return reqMap;
-            }
-          }
-        } catch (e) {}
-        return null;
-      }
-
-      async function updateRequestInCloud(_id, accessId, status, username = '') {
-        try {
-          const payload = { accessId, status, username, updatedAt: getLocalDateString() };
-          if (_id) {
-            await fetch(`${CRUD_API_BASE}/${_id}`, {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(payload)
-            });
-          } else {
-            await fetch(CRUD_API_BASE, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(payload)
-            });
-          }
         } catch (e) {}
       }
 
@@ -867,489 +767,84 @@
       }
 
       // ========================================================
-      // 8. ADMINISTRATOR ACCESS GATE & APPROVAL CONTROL MODAL
+      // 8. NAME SETUP MODAL (ASK NAME TO START)
       // ========================================================
-      function AdminControlModal({ appState, setAppState, onClose }) {
-        const [newCustomId, setNewCustomId] = useState('');
-        const [generatedMsg, setGeneratedMsg] = useState('');
-        const [isRefreshing, setIsRefreshing] = useState(false);
-
-        const accessRequests = appState.accessRequests || {};
-
-        const handleManualCloudFetch = async () => {
-          setIsRefreshing(true);
-          const cloudMap = await fetchAllRequestsFromCloud();
-          if (cloudMap && Object.keys(cloudMap).length > 0) {
-            setAppState(prev => {
-              const merged = { ...prev.accessRequests, ...cloudMap };
-              const newState = { ...prev, accessRequests: merged };
-              saveAppState(newState, false);
-              return newState;
-            });
-            setGeneratedMsg('✓ Synced latest user access requests from Cloud!');
-          } else {
-            setGeneratedMsg('Checked Cloud: No new pending requests yet.');
-          }
-          setIsRefreshing(false);
-        };
-
-        useEffect(() => {
-          handleManualCloudFetch();
-        }, []);
-
-        const handleApprove = (id) => {
-          const req = accessRequests[id] || { id, username: 'Member', status: 'pending' };
-          updateRequestInCloud(req._id, id, 'approved', req.username);
-
-          setAppState(prev => {
-            const updatedReqs = { ...prev.accessRequests, [id]: { ...req, status: 'approved' } };
-            
-            const existingUser = prev.users[id] || {
-              id,
-              username: req.username || `Member_${id.slice(-4)}`,
-              shareId: id,
-              current_rank: 1,
-              current_streak_days: 0,
-              days_this_month: 0,
-              created_at: getLocalDateString(),
-              history: []
-            };
-
-            const newState = {
-              ...prev,
-              accessRequests: updatedReqs,
-              users: { ...prev.users, [id]: existingUser }
-            };
-            saveAppState(newState);
-            return newState;
-          });
-        };
-
-        const handleDeny = (id) => {
-          setAppState(prev => {
-            const updatedReqs = { ...prev.accessRequests };
-            delete updatedReqs[id];
-            const newState = { ...prev, accessRequests: updatedReqs };
-            saveAppState(newState);
-            return newState;
-          });
-        };
-
-        const handleGenerateNewId = (e) => {
-          e.preventDefault();
-          const newId = newCustomId.trim() || `USER-${Math.floor(1000 + Math.random() * 9000)}-JOIN`;
-          setAppState(prev => {
-            const newState = {
-              ...prev,
-              accessRequests: {
-                ...prev.accessRequests,
-                [newId]: { id: newId, username: '', status: 'approved', createdAt: getLocalDateString() }
-              }
-            };
-            saveAppState(newState);
-            return newState;
-          });
-          setGeneratedMsg(`Created & Approved Access ID: ${newId}`);
-          setNewCustomId('');
-        };
-
-        const handleSimulateIncomingRequest = () => {
-          const simId = `USER-${Math.floor(1000 + Math.random() * 9000)}-JOIN`;
-          setAppState(prev => {
-            const newState = {
-              ...prev,
-              accessRequests: {
-                ...prev.accessRequests,
-                [simId]: { id: simId, username: '', status: 'pending', createdAt: getLocalDateString() }
-              }
-            };
-            saveAppState(newState);
-            return newState;
-          });
-          setGeneratedMsg(`Simulated incoming request from: ${simId}`);
-        };
-
-        const sortedRequests = Object.values(accessRequests).sort((a, b) => {
-          if (a.status === 'pending' && b.status !== 'pending') return -1;
-          if (a.status !== 'pending' && b.status === 'pending') return 1;
-          return 0;
-        });
-
-        return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-xl animate-fadeIn text-left text-slate-100 font-mono">
-            <div className="relative w-full max-w-xl p-6 rounded-3xl bg-slate-950 border border-amber-500/60 shadow-2xl space-y-5">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-                <div className="flex items-center gap-2 text-amber-400 font-black tracking-wider text-lg">
-                  <span>👑 ADMINISTRATOR CONTROL DASHBOARD</span>
-                </div>
-                <button onClick={onClose} className="px-3 py-1 bg-slate-900 hover:bg-slate-800 rounded-lg border border-slate-700 text-xs">CLOSE</button>
-              </div>
-
-              {/* Generate ID Form & Simulation */}
-              <div className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-3">
-                <span className="text-xs font-bold text-amber-300 block">CREATE ACCESS ID OR TEST INCOMING REQUEST</span>
-                <form onSubmit={handleGenerateNewId} className="flex gap-2">
-                  <input
-                    type="text"
-                    placeholder="Enter custom user ID to create/approve (e.g. USER-77)"
-                    value={newCustomId}
-                    onChange={e => setNewCustomId(e.target.value)}
-                    className="flex-1 bg-black border border-slate-700 rounded-lg px-3 py-2 text-xs text-white"
-                  />
-                  <button type="submit" className="bg-amber-500 hover:bg-amber-400 text-black font-bold px-3 py-2 rounded-lg text-xs whitespace-nowrap">
-                    + APPROVE / CREATE ID
-                  </button>
-                </form>
-
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={handleManualCloudFetch}
-                    disabled={isRefreshing}
-                    className="flex-1 py-2 bg-cyan-950/80 hover:bg-cyan-900 border border-cyan-500/60 text-cyan-300 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2"
-                  >
-                    <span>{isRefreshing ? '🔄 SYNCING...' : '🔄 REFRESH CLOUD REQUESTS'}</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleSimulateIncomingRequest}
-                    className="flex-1 py-2 bg-amber-950/60 hover:bg-amber-900 border border-amber-500/60 text-amber-300 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2"
-                  >
-                    <span>⚡ TEST SIMULATE REQUEST</span>
-                  </button>
-                </div>
-
-                {generatedMsg && <p className="text-xs text-emerald-400 font-bold">{generatedMsg}</p>}
-              </div>
-
-              {/* Access Requests List */}
-              <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
-                <span className="text-xs font-bold text-slate-400 block uppercase">All Access IDs & Pending User Requests</span>
-                {sortedRequests.length === 0 ? (
-                  <p className="text-xs text-slate-500 p-4 text-center">No access requests recorded yet.</p>
-                ) : (
-                  sortedRequests.map(req => (
-                    <div key={req.id} className={`p-3 rounded-xl border flex items-center justify-between text-xs ${req.status === 'pending' ? 'bg-amber-950/80 border-amber-500 animate-pulse shadow-md shadow-amber-500/20' : 'bg-slate-900/80 border-slate-800'}`}>
-                      <div>
-                        <span className="font-bold text-cyan-300 block">{req.id} {req.isAdmin ? '(Administrator)' : ''}</span>
-                        <span className="text-slate-400 text-[10px]">
-                          Name: {req.username || 'Not set yet'} | Status: <strong className={req.status === 'pending' ? 'text-amber-400 font-bold' : 'text-emerald-400'}>{req.status.toUpperCase()}</strong>
-                        </span>
-                      </div>
-
-                      <div className="flex gap-2">
-                        {req.status === 'pending' ? (
-                          <>
-                            <button onClick={() => handleApprove(req.id)} className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3.5 py-1.5 rounded shadow-lg text-xs">ALLOW</button>
-                            <button onClick={() => handleDeny(req.id)} className="bg-rose-600 hover:bg-rose-500 text-white font-bold px-3 py-1.5 rounded shadow text-xs">DENY</button>
-                          </>
-                        ) : (
-                          <span className="bg-emerald-950 border border-emerald-600 text-emerald-400 px-2 py-1 rounded font-bold text-[10px]">APPROVED</span>
-                        )}
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          </div>
-        );
-      }
-
-      function AccessGate({ appState, setAppState, onAccessGranted }) {
-        const [accessIdInput, setAccessIdInput] = useState('');
+      function NameSetupModal({ onUserCreated }) {
         const [nameInput, setNameInput] = useState('');
-        const [error, setError] = useState('');
-        const [step, setStep] = useState('enter_id');
-        const [activeAccessId, setActiveAccessId] = useState('');
 
-        const handleAccessSubmit = (e) => {
+        const handleSubmit = (e) => {
           e.preventDefault();
-          setError('');
-          const rawId = accessIdInput.trim();
-          if (!rawId) return;
-
-          if (rawId.toLowerCase() === MASTER_ADMIN_KEY.toLowerCase()) {
-            onAccessGranted(MASTER_ADMIN_KEY);
-            return;
-          }
-
-          const existingReq = appState.accessRequests?.[rawId];
-
-          if (!existingReq) {
-            pushRequestToCloud(rawId);
-            setAppState(prev => {
-              const newState = {
-                ...prev,
-                accessRequests: {
-                  ...prev.accessRequests,
-                  [rawId]: { id: rawId, username: '', status: 'pending', createdAt: getLocalDateString() }
-                }
-              };
-              saveAppState(newState);
-              return newState;
-            });
-            setActiveAccessId(rawId);
-            setStep('pending');
-          } else if (existingReq.status === 'pending') {
-            pushRequestToCloud(rawId);
-            setActiveAccessId(rawId);
-            setStep('pending');
-          } else if (existingReq.status === 'approved') {
-            setActiveAccessId(rawId);
-            if (existingReq.username) {
-              onAccessGranted(rawId);
-            } else {
-              setStep('enter_name');
-            }
-          }
+          const trimmed = nameInput.trim();
+          if (!trimmed) return;
+          const userId = 'user_' + Date.now();
+          const newUser = {
+            id: userId,
+            username: trimmed,
+            current_rank: 1,
+            current_streak_days: 0,
+            days_this_month: 0,
+            created_at: getLocalDateString(),
+            history: []
+          };
+          onUserCreated(newUser);
         };
-
-        const handleNameSubmit = (e) => {
-          e.preventDefault();
-          const trimmedName = nameInput.trim();
-          if (!trimmedName) return;
-
-          setAppState(prev => {
-            const updatedReqs = {
-              ...prev.accessRequests,
-              [activeAccessId]: { ...prev.accessRequests[activeAccessId], username: trimmedName, status: 'approved' }
-            };
-
-            const newUser = {
-              id: activeAccessId,
-              username: trimmedName,
-              shareId: activeAccessId,
-              current_rank: 1,
-              current_streak_days: 0,
-              days_this_month: 0,
-              created_at: getLocalDateString(),
-              history: []
-            };
-
-            const newState = {
-              ...prev,
-              accessRequests: updatedReqs,
-              users: { ...prev.users, [activeAccessId]: newUser }
-            };
-            saveAppState(newState);
-            return newState;
-          });
-
-          onAccessGranted(activeAccessId);
-        };
-
-        useEffect(() => {
-          if (step === 'pending' && activeAccessId) {
-            const interval = setInterval(async () => {
-              const req = appState.accessRequests?.[activeAccessId];
-              if (req && req.status === 'approved') {
-                if (req.username) {
-                  onAccessGranted(activeAccessId);
-                } else {
-                  setStep('enter_name');
-                }
-                return;
-              }
-
-              const cloudMap = await fetchAllRequestsFromCloud();
-              if (cloudMap && cloudMap[activeAccessId]) {
-                const cloudReq = cloudMap[activeAccessId];
-                if (cloudReq && cloudReq.status === 'approved') {
-                  setAppState(prev => ({
-                    ...prev,
-                    accessRequests: { ...prev.accessRequests, [activeAccessId]: cloudReq }
-                  }));
-                  if (cloudReq.username) {
-                    onAccessGranted(activeAccessId);
-                  } else {
-                    setStep('enter_name');
-                  }
-                }
-              }
-            }, 1000);
-            return () => clearInterval(interval);
-          }
-        }, [step, activeAccessId, appState.accessRequests]);
 
         return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/95 backdrop-blur-2xl text-slate-100 font-mono animate-fadeIn">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/95 backdrop-blur-2xl text-slate-100 font-sans animate-fadeIn">
             <div className="relative w-full max-w-md p-6 sm:p-8 rounded-3xl bg-slate-950 border-2 border-cyan-500/60 shadow-2xl text-center space-y-6">
               
               <div className="inline-flex p-4 rounded-2xl bg-cyan-950/80 border border-cyan-500/40 text-cyan-400">
-                <span className="text-4xl">🔐</span>
+                <span className="text-4xl">🔥</span>
               </div>
 
               <div>
-                <h2 className="text-2xl font-black tracking-wider uppercase text-white">RankStreak Gate</h2>
-                <p className="text-xs text-slate-400 mt-1">Administrator Approval Required to Enter App</p>
+                <h2 className="text-2xl font-black tracking-wider uppercase text-white font-mono">RankStreak</h2>
+                <p className="text-xs text-slate-400 mt-1">Daily Progress & Streak Tracker</p>
               </div>
 
-              {step === 'enter_id' && (
-                <form onSubmit={handleAccessSubmit} className="space-y-4">
-                  <div>
-                    <label className="text-[10px] text-slate-400 uppercase font-bold block mb-1">Enter Access ID or Create a Request ID</label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="Type your ID or any requested ID (e.g. USER-77)"
-                      value={accessIdInput}
-                      onChange={e => setAccessIdInput(e.target.value)}
-                      className="w-full bg-black border border-slate-700 rounded-xl px-4 py-3 text-sm text-cyan-300 font-bold tracking-wider text-center focus:outline-none focus:border-cyan-400"
-                    />
-                  </div>
-
-                  {error && <p className="text-xs text-rose-400">{error}</p>}
-
-                  <button type="submit" className="w-full py-3.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-black font-bold text-sm tracking-wider uppercase shadow-xl transition-all">
-                    SUBMIT & REQUEST ACCESS
-                  </button>
-
-                  <p className="text-[10px] text-slate-500 text-center mt-2">Type any ID above to send a real-time approval request to the Administrator. Once approved in the Admin Panel, your ID will be activated permanently!</p>
-                  <p className="text-[10px] text-amber-400/90 text-center font-mono pt-1">👑 Administrator? Type <strong className="text-white underline">themenaretuff</strong> above to open Control Panel.</p>
-                </form>
-              )}
-
-              {step === 'pending' && (
-                <div className="p-5 rounded-2xl bg-amber-950/60 border border-amber-500/60 space-y-3 animate-pulse">
-                  <span className="text-3xl">⏳</span>
-                  <h3 className="text-sm font-bold text-amber-200">WAITING FOR ADMINISTRATOR APPROVAL</h3>
-                  <p className="text-xs text-amber-300/80">
-                    Your Access ID: <strong className="text-white underline">{activeAccessId}</strong>
-                  </p>
-                  <p className="text-[11px] text-slate-400">The Administrator must click "ALLOW" in their panel. This screen will automatically update when approved!</p>
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                  <label className="text-xs text-slate-300 font-bold block mb-1.5 uppercase font-mono">Enter Your Name to Begin</label>
+                  <input
+                    type="text"
+                    required
+                    autoFocus
+                    placeholder="e.g. Alex"
+                    value={nameInput}
+                    onChange={e => setNameInput(e.target.value)}
+                    className="w-full bg-black border border-slate-700 rounded-xl px-4 py-3.5 text-base text-cyan-300 font-bold tracking-wider text-center focus:outline-none focus:border-cyan-400"
+                  />
                 </div>
-              )}
 
-              {step === 'enter_name' && (
-                <form onSubmit={handleNameSubmit} className="space-y-4 animate-fadeIn">
-                  <div className="p-3 rounded-xl bg-emerald-950/60 border border-emerald-500/60 text-emerald-300 text-xs font-bold">
-                    ✓ Access Approved by Administrator!
-                  </div>
-
-                  <div>
-                    <label className="text-[10px] text-slate-400 uppercase font-bold block mb-1">Enter Your Display Name</label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="e.g. Alex Smith"
-                      value={nameInput}
-                      onChange={e => setNameInput(e.target.value)}
-                      className="w-full bg-black border border-slate-700 rounded-xl px-4 py-3 text-sm text-white font-bold text-center focus:outline-none focus:border-emerald-400"
-                    />
-                  </div>
-
-                  <button type="submit" className="w-full py-3.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-sm tracking-wider uppercase shadow-xl transition-all">
-                    ENTER RANKSTREAK (DAY 1)
-                  </button>
-                </form>
-              )}
+                <button type="submit" className="w-full py-4 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-black font-bold text-sm tracking-wider uppercase shadow-xl transition-all font-mono">
+                  START TRACKING STREAK 🚀
+                </button>
+              </form>
             </div>
           </div>
         );
       }
 
       // ========================================================
-      // 9. MAIN APP COMPONENT WITH REAL-TIME ADMIN POLL
+      // 9. MAIN APP COMPONENT
       // ========================================================
       function App() {
         const [appState, setAppState] = useState(() => loadAppState());
         const [activeTab, setActiveTab] = useState('home');
         const [viewingFriendId, setViewingFriendId] = useState(null);
         const [transitionEvent, setTransitionEvent] = useState(null);
-        const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
 
         // Auto Save
         useEffect(() => { saveAppState(appState); }, [appState]);
 
-        // REAL-TIME AUTO POLL & BroadcastChannel Across Tabs & Windows
-        useEffect(() => {
-          const handleStorageChange = (e) => {
-            if (e.key === STORAGE_KEY && e.newValue) {
-              try {
-                const fresh = JSON.parse(e.newValue);
-                setAppState(prev => ({
-                  ...prev,
-                  accessRequests: fresh.accessRequests,
-                  users: fresh.users
-                }));
-              } catch (err) {}
-            }
-          };
-
-          window.addEventListener('storage', handleStorageChange);
-
-          let bc;
-          if (window.BroadcastChannel) {
-            try {
-              bc = new BroadcastChannel(SYNC_CHANNEL_NAME);
-              bc.onmessage = (event) => {
-                if (event.data && event.data.state) {
-                  const fresh = event.data.state;
-                  setAppState(prev => ({
-                    ...prev,
-                    accessRequests: fresh.accessRequests,
-                    users: fresh.users
-                  }));
-                }
-              };
-            } catch (err) {}
-          }
-
-          const interval = setInterval(async () => {
-            const fresh = loadAppState();
-            setAppState(prev => {
-              if (JSON.stringify(prev.accessRequests) !== JSON.stringify(fresh.accessRequests)) {
-                return {
-                  ...prev,
-                  accessRequests: fresh.accessRequests,
-                  users: fresh.users
-                };
-              }
-              return prev;
-            });
-
-            const cloudMap = await fetchAllRequestsFromCloud();
-            if (cloudMap && Object.keys(cloudMap).length > 0) {
-              setAppState(prev => {
-                const mergedReqs = { ...prev.accessRequests, ...cloudMap };
-                if (JSON.stringify(prev.accessRequests) !== JSON.stringify(mergedReqs)) {
-                  const newState = {
-                    ...prev,
-                    accessRequests: mergedReqs
-                  };
-                  saveAppState(newState, false);
-                  return newState;
-                }
-                return prev;
-              });
-            }
-          }, 1500);
-
-          return () => {
-            window.removeEventListener('storage', handleStorageChange);
-            if (bc) bc.close();
-            clearInterval(interval);
-          };
-        }, []);
-
         const activeUserId = appState.activeUserId;
         const currentUser = appState.users[activeUserId];
-        
-        const isAdmin = Boolean(
-          activeUserId && activeUserId.trim().toLowerCase() === MASTER_ADMIN_KEY.toLowerCase()
-        );
 
-        // Count pending requests for Admin Notification Badge
-        const pendingRequestsList = Object.values(appState.accessRequests || {}).filter(
-          r => r.status === 'pending'
-        );
-        const pendingCount = pendingRequestsList.length;
-
-        const handleAccessGranted = (grantedUserId) => {
+        const handleUserCreated = (newUser) => {
           setAppState(prev => ({
             ...prev,
-            activeUserId: grantedUserId
+            activeUserId: newUser.id,
+            users: { ...prev.users, [newUser.id]: newUser }
           }));
         };
 
@@ -1370,7 +865,7 @@
         };
 
         if (!activeUserId || !currentUser) {
-          return <AccessGate appState={appState} setAppState={setAppState} onAccessGranted={handleAccessGranted} />;
+          return <NameSetupModal onUserCreated={handleUserCreated} />;
         }
 
         if (viewingFriendId) {
@@ -1389,26 +884,12 @@
           <div className="relative min-h-screen bg-black text-slate-100 font-sans pb-24 sm:pb-12">
             <ObsidianThemeCanvas currentRank={currentRank} />
 
-            {/* Glowing Admin Pending Alert Banner */}
-            {isAdmin && pendingCount > 0 && (
-              <div
-                onClick={() => setIsAdminModalOpen(true)}
-                className="bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 text-black px-4 py-2 font-mono font-black text-xs text-center cursor-pointer flex items-center justify-center gap-2 animate-pulse shadow-lg relative z-40"
-              >
-                <span>🔔 ALERT: {pendingCount} NEW USER ID REQUEST{pendingCount > 1 ? 'S' : ''} RECEIVED ({pendingRequestsList.map(r => r.id).join(', ')})!</span>
-                <span className="bg-black text-amber-300 px-2.5 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider">CLICK TO REVIEW & ALLOW ►</span>
-              </div>
-            )}
-
             {/* Top Navbar */}
             <header className="px-6 py-4 bg-black/80 backdrop-blur-md border-b border-slate-800 flex items-center justify-between relative z-30">
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded-lg flex items-center justify-center font-black font-mono text-black" style={{ backgroundColor: rankConfig.accentHex }}>R{currentRank}</div>
                 <div className="text-left">
-                  <h1 className="text-base font-black font-mono tracking-wider uppercase text-white flex items-center gap-2">
-                    <span>RankStreak</span>
-                    {isAdmin && <span className="text-[10px] font-mono bg-amber-500 text-black px-1.5 py-0.5 rounded font-bold">ADMIN</span>}
-                  </h1>
+                  <h1 className="text-base font-black font-mono tracking-wider uppercase text-white">RankStreak</h1>
                   <span className="text-[10px] font-mono text-slate-400 block -mt-1">{currentUser.username} • {rankConfig.name}</span>
                 </div>
               </div>
@@ -1421,31 +902,12 @@
                   <button onClick={() => setActiveTab('friends')} className={`px-3 py-1.5 rounded-lg ${activeTab === 'friends' ? 'bg-slate-800 text-white' : 'text-slate-400'}`}>Friends</button>
                 </nav>
 
-                {/* ADMIN PANEL BUTTON WITH REAL-TIME PENDING NOTIFICATION BADGE */}
-                {isAdmin && (
-                  <button
-                    onClick={() => setIsAdminModalOpen(true)}
-                    className={`text-xs font-mono font-bold px-3 py-2 rounded-xl transition-all flex items-center gap-1.5 ${
-                      pendingCount > 0
-                        ? 'bg-amber-500 text-black animate-bounce shadow-lg shadow-amber-500/50'
-                        : 'bg-amber-500/80 hover:bg-amber-400 text-black'
-                    }`}
-                  >
-                    <span>👑 ADMIN PANEL</span>
-                    {pendingCount > 0 && (
-                      <span className="bg-black text-amber-400 px-1.5 py-0.5 rounded-full text-[10px]">
-                        {pendingCount} PENDING
-                      </span>
-                    )}
-                  </button>
-                )}
-
                 <button
                   onClick={() => setAppState(prev => ({ ...prev, activeUserId: null }))}
-                  className="bg-slate-900 hover:bg-slate-800 text-slate-400 text-xs font-mono px-2.5 py-2 rounded-xl border border-slate-800"
-                  title="Switch Access ID"
+                  className="bg-slate-900 hover:bg-slate-800 text-slate-400 text-xs font-mono px-3 py-1.5 rounded-xl border border-slate-800 font-bold"
+                  title="Switch or enter new name"
                 >
-                  🚪
+                  👤 Switch Name
                 </button>
               </div>
             </header>
@@ -1488,8 +950,6 @@
             </main>
 
             {transitionEvent && <RankTransitionOverlay eventType={transitionEvent.type} oldRank={transitionEvent.oldRank} newRank={transitionEvent.newRank} onClose={() => setTransitionEvent(null)} />}
-
-            {isAdminModalOpen && isAdmin && <AdminControlModal appState={appState} setAppState={setAppState} onClose={() => setIsAdminModalOpen(false)} />}
           </div>
         );
       }
