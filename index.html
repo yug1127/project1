@@ -354,7 +354,7 @@
         isSyncingToCloud = true;
         try {
           const payload = {
-            id: 'rankstreak_yugpatel_1127_app_v9',
+            id: 'rankstreak_themenaretuff_app_v10',
             name: 'RankStreak Global Cloud Data',
             data: {
               accessRequests: state.accessRequests,
@@ -854,8 +854,26 @@
       function AdminControlModal({ appState, setAppState, onClose }) {
         const [newCustomId, setNewCustomId] = useState('');
         const [generatedMsg, setGeneratedMsg] = useState('');
+        const [isRefreshing, setIsRefreshing] = useState(false);
 
         const accessRequests = appState.accessRequests || {};
+
+        const handleManualCloudFetch = async () => {
+          setIsRefreshing(true);
+          const cloudData = await fetchFromCloudServer();
+          if (cloudData && cloudData.accessRequests) {
+            setAppState(prev => {
+              const merged = { ...prev.accessRequests, ...cloudData.accessRequests };
+              const newState = { ...prev, accessRequests: merged };
+              saveAppState(newState, false);
+              return newState;
+            });
+            setGeneratedMsg('✓ Synced latest user access requests from Cloud!');
+          } else {
+            setGeneratedMsg('Checked Cloud: No new pending requests yet.');
+          }
+          setIsRefreshing(false);
+        };
 
         const handleApprove = (id) => {
           setAppState(prev => {
@@ -949,23 +967,33 @@
                 <form onSubmit={handleGenerateNewId} className="flex gap-2">
                   <input
                     type="text"
-                    placeholder="e.g. USER-2026-ROCK or leave blank for auto"
+                    placeholder="Enter custom user ID to create/approve (e.g. USER-77)"
                     value={newCustomId}
                     onChange={e => setNewCustomId(e.target.value)}
                     className="flex-1 bg-black border border-slate-700 rounded-lg px-3 py-2 text-xs text-white"
                   />
                   <button type="submit" className="bg-amber-500 hover:bg-amber-400 text-black font-bold px-3 py-2 rounded-lg text-xs whitespace-nowrap">
-                    + GENERATE ID
+                    + APPROVE / CREATE ID
                   </button>
                 </form>
 
-                <button
-                  type="button"
-                  onClick={handleSimulateIncomingRequest}
-                  className="w-full py-2 bg-amber-950/60 hover:bg-amber-900 border border-amber-500/60 text-amber-300 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2"
-                >
-                  <span>⚡ TEST RECEIVING USER REQUEST (Simulate Incoming ID)</span>
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={handleManualCloudFetch}
+                    disabled={isRefreshing}
+                    className="flex-1 py-2 bg-cyan-950/80 hover:bg-cyan-900 border border-cyan-500/60 text-cyan-300 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2"
+                  >
+                    <span>{isRefreshing ? '🔄 SYNCING...' : '🔄 REFRESH CLOUD REQUESTS'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSimulateIncomingRequest}
+                    className="flex-1 py-2 bg-amber-950/60 hover:bg-amber-900 border border-amber-500/60 text-amber-300 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2"
+                  >
+                    <span>⚡ TEST SIMULATE REQUEST</span>
+                  </button>
+                </div>
 
                 {generatedMsg && <p className="text-xs text-emerald-400 font-bold">{generatedMsg}</p>}
               </div>
