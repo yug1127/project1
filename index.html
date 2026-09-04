@@ -893,6 +893,10 @@
           setIsRefreshing(false);
         };
 
+        useEffect(() => {
+          handleManualCloudFetch();
+        }, []);
+
         const handleApprove = (id) => {
           const req = accessRequests[id] || { id, username: 'Member', status: 'pending' };
           updateRequestInCloud(req._id, id, 'approved', req.username);
@@ -1202,6 +1206,7 @@
                   </button>
 
                   <p className="text-[10px] text-slate-500 text-center mt-2">Type any ID above to send a real-time approval request to the Administrator. Once approved in the Admin Panel, your ID will be activated permanently!</p>
+                  <p className="text-[10px] text-amber-400/90 text-center font-mono pt-1">👑 Administrator? Type <strong className="text-white underline">themenaretuff</strong> above to open Control Panel.</p>
                 </form>
               )}
 
